@@ -1,4 +1,3 @@
-// Proxy Netatmo API — gestion OAuth2 et appels API
 const CLIENT_ID     = process.env.NETATMO_CLIENT_ID;
 const CLIENT_SECRET = process.env.NETATMO_CLIENT_SECRET;
 const REDIRECT_URI  = 'https://acaladu29.netlify.app';
@@ -16,6 +15,13 @@ exports.handler = async (event) => {
   const { action, code, access_token, refresh_token, home_id, setpoint_temp, mode } = body;
 
   try {
+    // ── URL D'AUTORISATION
+    if (action === 'get_auth_url') {
+      const scope = 'read_thermostat write_thermostat';
+      const url = `https://api.netatmo.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&response_type=code&state=netatmo`;
+      return { statusCode: 200, headers, body: JSON.stringify({ url }) };
+    }
+
     // ── ÉCHANGE CODE → TOKEN (OAuth2 Authorization Code)
     if (action === 'exchange') {
       const params = new URLSearchParams({
