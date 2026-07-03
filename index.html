@@ -2082,6 +2082,40 @@ async function init() {
 
 init();
 
+// ── NETATMO OAuth2 callback ──────────────────────────────────────────────────
+(async function() {
+  const params = new URLSearchParams(window.location.search);
+  const code  = params.get('code');
+  const state = params.get('state');
+  if (code && state === 'netatmo') {
+    // Nettoyer l'URL
+    window.history.replaceState({}, document.title, '/');
+    // Échanger le code contre un token
+    try {
+      const r = await fetch('/api/netatmo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'exchange', code })
+      });
+      const text = await r.text();
+      const d = JSON.parse(text);
+      if (d.access_token) {
+        netatmoAuth = { ...d, expires_at: Date.now() + d.expires_in * 1000 };
+        localStorage.setItem('netatmo_auth', JSON.stringify(netatmoAuth));
+        showToast('Netatmo connecté ✓');
+        // Afficher l'onglet domotique
+        showPage('domo');
+        showNetatmoDashboard();
+        netatmoRefresh();
+      } else {
+        showToast('Erreur Netatmo : ' + (d.error || JSON.stringify(d)));
+      }
+    } catch(e) {
+      showToast('Erreur connexion Netatmo : ' + e.message);
+    }
+  }
+})();
+
 // ── NETATMO ─────────────────────────────────────────────────────────────────
 
 let netatmoAuth  = JSON.parse(localStorage.getItem('netatmo_auth') || 'null');
@@ -2122,55 +2156,12 @@ async function netatmoDoRefresh() {
 }
 
 function netatmoConnect() {
-  // Afficher un mini-formulaire de connexion inline
-  const block = document.getElementById('netatmo-connect-block');
-  block.innerHTML = `
-    <div class="energy-card" style="padding:20px;">
-      <div style="font-weight:600;margin-bottom:14px;">Connexion Netatmo</div>
-      <div style="margin-bottom:10px;">
-        <label style="font-size:12px;color:var(--texte-sec);display:block;margin-bottom:4px;">Email Netatmo</label>
-        <input id="netatmo-email" type="email" placeholder="votre@email.com"
-          style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--gris-bord);border-radius:8px;font-size:14px;font-family:var(--font);">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:12px;color:var(--texte-sec);display:block;margin-bottom:4px;">Mot de passe Netatmo</label>
-        <input id="netatmo-pass" type="password" placeholder="••••••••"
-          style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--gris-bord);border-radius:8px;font-size:14px;font-family:var(--font);">
-      </div>
-      <button onclick="netatmoLogin()" class="btn-submit" style="width:100%;">Se connecter</button>
-      <div id="netatmo-login-error" style="color:var(--rouge);font-size:12px;margin-top:8px;text-align:center;"></div>
-    </div>`;
+  const CLIENT_ID = '6a454a318f09a135c30758c1';
+  const REDIRECT = 'https://acaladu29.netlify.app';
+  const scope = 'read_thermostat write_thermostat';
+  const url = `https://api.netatmo.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(scope)}&response_type=code&state=netatmo`;
+  window.location = url;
 }
-
-async function netatmoLogin() {
-  const email = document.getElementById('netatmo-email').value.trim();
-  const pass  = document.getElementById('netatmo-pass').value;
-  const errEl = document.getElementById('netatmo-login-error');
-  if (!email || !pass) { errEl.textContent = 'Renseignez votre email et mot de passe.'; return; }
-  errEl.textContent = 'Connexion en cours…';
-
-  let r, d;
-  try {
-    r = await fetch('/api/netatmo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'login', username: email, password: pass })
-    });
-    const text = await r.text();
-    try { d = JSON.parse(text); }
-    catch { errEl.textContent = 'Erreur serveur (' + r.status + '). Vérifiez les variables NETATMO dans Netlify et redéployez.'; return; }
-  } catch(e) {
-    errEl.textContent = 'Erreur réseau : ' + e.message;
-    return;
-  }
-  if (!d.access_token) {
-    errEl.textContent = d.error_description || d.error || 'Identifiants incorrects.';
-    return;
-  }
-  netatmoAuth = { ...d, expires_at: Date.now() + d.expires_in * 1000 };
-  localStorage.setItem('netatmo_auth', JSON.stringify(netatmoAuth));
-  showNetatmoDashboard();
-  netatmoRefresh();
 }
 
 function showNetatmoDashboard() {
