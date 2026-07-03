@@ -2155,16 +2155,12 @@ async function netatmoDoRefresh() {
   }
 }
 
-async function netatmoConnect() {
-  // Récupérer le client_id depuis le serveur pour ne pas l'exposer
-  const r = await fetch('/api/netatmo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'get_auth_url' })
-  });
-  const d = await r.json();
-  if (d.url) window.location = d.url;
-  else showToast('Erreur configuration Netatmo');
+function netatmoConnect() {
+  const CLIENT_ID = '6a454a318f09a135c30758c1';
+  const REDIRECT = 'https://acaladu29.netlify.app';
+  const scope = 'read_thermostat write_thermostat';
+  const url = `https://api.netatmo.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(scope)}&response_type=code&state=netatmo`;
+  window.location = url;
 }
 }
 
