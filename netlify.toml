@@ -1,0 +1,23 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/claude"
+  to = "/.netlify/functions/claude-proxy"
+  status = 200
+
+[[redirects]]
+  from = "/api/config"
+  to = "/.netlify/functions/config"
+  status = 200
+
+[[redirects]]
+  from = "/api/linky"
+  to = "/.netlify/functions/linky-proxy"
+  status = 200
+
+[[redirects]]
+  from = "/api/netatmo"
+  to = "/.netlify/functions/netatmo-proxy"
+  status = 200
