@@ -3,17 +3,32 @@ const NETATMO_CLIENT_ID     = process.env.NETATMO_CLIENT_ID;
 const NETATMO_CLIENT_SECRET = process.env.NETATMO_CLIENT_SECRET;
 
 exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+  }
+
+  // Vérifier que les variables d'env sont présentes
+  if (!NETATMO_CLIENT_ID || !NETATMO_CLIENT_SECRET) {
+    return { statusCode: 500, headers, body: JSON.stringify({ 
+      error: 'Variables manquantes',
+      has_client_id: !!NETATMO_CLIENT_ID,
+      has_client_secret: !!NETATMO_CLIENT_SECRET
+    })};
+  }
 
   let body;
-  try { body = JSON.parse(event.body); } catch { return { statusCode: 400, body: 'Bad Request' }; }
+  try { body = JSON.parse(event.body); } 
+  catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Bad Request' }) }; }
 
   const { action, access_token, refresh_token, username, password, home_id, setpoint_temp, mode } = body;
 
-  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
-
   try {
-    // ── 1. LOGIN (username + password → tokens)
     if (action === 'login') {
       const params = new URLSearchParams({
         grant_type: 'password',
@@ -29,15 +44,9 @@ exports.handler = async (event) => {
         body: params.toString()
       });
       const d = await r.json();
-      if (!r.ok) return { statusCode: r.status, headers, body: JSON.stringify(d) };
-      return { statusCode: 200, headers, body: JSON.stringify({
-        access_token: d.access_token,
-        refresh_token: d.refresh_token,
-        expires_in: d.expires_in
-      })};
+      return { statusCode: r.status, headers, body: JSON.stringify(d) };
     }
 
-    // ── 2. REFRESH TOKEN
     if (action === 'refresh') {
       const params = new URLSearchParams({
         grant_type: 'refresh_token',
@@ -51,17 +60,10 @@ exports.handler = async (event) => {
         body: params.toString()
       });
       const d = await r.json();
-      if (!r.ok) return { statusCode: r.status, headers, body: JSON.stringify(d) };
-      return { statusCode: 200, headers, body: JSON.stringify({
-        access_token: d.access_token,
-        refresh_token: d.refresh_token,
-        expires_in: d.expires_in
-      })};
+      return { statusCode: r.status, headers, body: JSON.stringify(d) };
     }
 
-    // ── 3. GET STATUS (température + consigne + mode)
     if (action === 'status') {
-      // D'abord récupérer les home_id si pas fourni
       const r1 = await fetch('https://api.netatmo.com/api/homesdata', {
         headers: { Authorization: `Bearer ${access_token}` }
       });
@@ -80,63 +82,49 @@ exports.handler = async (event) => {
 
       const rooms = d2.body?.home?.rooms || [];
       const modules = d2.body?.home?.modules || [];
-      // Trouver le module thermostat
       const thermo = modules.find(m => m.type === 'NATherm1') || modules[0];
       const room = rooms.find(r => r.id === thermo?.room_id) || rooms[0];
-
-      // Trouver les modules du home pour les noms
       const homeModules = home.modules || [];
       const thermoInfo = homeModules.find(m => m.type === 'NATherm1') || {};
 
       return { statusCode: 200, headers, body: JSON.stringify({
         home_id: home.id,
+        room_id: room?.id,
         temp: room?.therm_measured_temperature,
         setpoint: room?.therm_setpoint_temperature,
         mode: room?.therm_setpoint_mode,
         heating: thermo?.boiler_status,
         battery: thermo?.battery_state,
-        rf_strength: thermo?.rf_strength,
         name: thermoInfo.name || 'Thermostat'
       })};
     }
 
-    // ── 4. SET SETPOINT (consigne manuelle)
     if (action === 'setpoint') {
       const r = await fetch('https://api.netatmo.com/api/setroomthermpoint', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          home_id,
-          room_id: body.room_id,
-          mode: 'manual',
-          temp: setpoint_temp,
-          endtime: Math.floor(Date.now() / 1000) + 3600 // 1h par défaut
+          home_id, room_id: body.room_id, mode: 'manual',
+          temp: setpoint_temp, endtime: Math.floor(Date.now() / 1000) + 3600
         })
       });
       const d = await r.json();
-      return { statusCode: r.ok ? 200 : r.status, headers, body: JSON.stringify(d) };
+      return { statusCode: r.status, headers, body: JSON.stringify(d) };
     }
 
-    // ── 5. SET MODE (programme, absent, hors-gel)
     if (action === 'mode') {
       const r = await fetch('https://api.netatmo.com/api/setthermmode', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ home_id, mode })
       });
       const d = await r.json();
-      return { statusCode: r.ok ? 200 : r.status, headers, body: JSON.stringify(d) };
+      return { statusCode: r.status, headers, body: JSON.stringify(d) };
     }
 
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) };
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action: ' + action }) };
 
   } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message, stack: err.stack }) };
   }
 };
