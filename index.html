@@ -2164,7 +2164,6 @@ function netatmoConnect() {
   const url = `https://api.netatmo.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(scope)}&response_type=code&state=netatmo`;
   window.location = url;
 }
-}
 
 function showNetatmoDashboard() {
   document.getElementById('netatmo-connect-block').style.display = 'none';
