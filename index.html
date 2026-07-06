@@ -2156,7 +2156,9 @@ async function netatmoDoRefresh() {
 }
 
 function netatmoConnect() {
-  const CLIENT_ID = '6a454a318f09a135c30758c1';
+  const cfg = window.__FIREBASE_CONFIG__ || {};
+  const CLIENT_ID = cfg.netatmoClientId;
+  if (!CLIENT_ID) { showToast('Configuration Netatmo manquante'); return; }
   const REDIRECT = 'https://acaladu29.netlify.app';
   const scope = 'read_thermostat write_thermostat';
   const url = `https://api.netatmo.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(scope)}&response_type=code&state=netatmo`;
