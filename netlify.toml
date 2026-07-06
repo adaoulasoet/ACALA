@@ -3,7 +3,7 @@
   functions = "netlify/functions"
 
 [build.environment]
-  SECRETS_SCAN_OMIT_PATHS = "index.html"
+  SECRETS_SCAN_OMIT_KEYS = "NETATMO_CLIENT_ID"
 
 [[redirects]]
   from = "/api/claude"
