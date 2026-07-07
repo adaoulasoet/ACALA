@@ -1646,6 +1646,7 @@ function renderImportReview() {
       <div class="import-row-info">
         <div class="import-row-desc">${r.desc || '—'}${r._duplicate ? '<span class="skip-badge">doublon?</span>' : ''}</div>
         <div class="import-row-meta">${r.date || ''} · <select class="import-cat-select" onchange="setCat(${r._id}, this.value)">${catOptions.replace(`value="${r.cat}"`, `value="${r.cat}" selected`)}</select></div>
+        ${r.cat === 'versement' ? `<select class="import-cat-select" style="margin-top:4px;" onchange="setVerseur(${r._id}, this.value)"><option value="alain" ${(r._verseur||'alain')==='alain'?'selected':''}>👤 Alain</option><option value="anne" ${(r._verseur||'alain')==='anne'?'selected':''}>👤 Anne-Laure</option></select>` : ''}
         <input class="import-comment-input" type="text" placeholder="Commentaire (ex: Plomberie)…" value="${r._comment || ''}" oninput="setComment(${r._id}, this.value)">
       </div>
       <div class="import-row-amount ${r.type==='depense'?'dep':'rev'}">${r.type==='depense'?'–':'+'}${fmt(r.montant)}</div>
@@ -1677,7 +1678,15 @@ function toggleAll(val) {
 }
 function setCat(id, cat) {
   const row = importedRows.find(r => r._id === id);
-  if (row) row.cat = cat;
+  if (row) {
+    row.cat = cat;
+    if (cat === 'versement' && !row._verseur) row._verseur = 'alain';
+    renderImportReview();
+  }
+}
+function setVerseur(id, val) {
+  const row = importedRows.find(r => r._id === id);
+  if (row) row._verseur = val;
 }
 
 async function doImport() {
@@ -1689,15 +1698,26 @@ async function doImport() {
   const toImport = importedRows.filter(r => r._selected && r.cat !== 'autre');
   if (!toImport.length) { showToast('Aucune transaction sélectionnée'); return; }
   toImport.forEach(r => {
-    data.transactions.push({
-      id: newId(),
-      type: r.type,
-      cat: r.cat,
-      desc: r.desc || 'Import PDF',
-      montant: parseFloat(r.montant) || 0,
-      date: r.date,
-      note: r._comment || ''
-    });
+    if (r.cat === 'versement') {
+      // Traiter comme un versement avec qui (Alain/Anne-Laure)
+      data.versements.push({
+        id: newId(),
+        qui: r._verseur || 'alain',
+        montant: parseFloat(r.montant) || 0,
+        date: r.date,
+        note: r._comment || (r.desc || 'Import PDF')
+      });
+    } else {
+      data.transactions.push({
+        id: newId(),
+        type: r.type,
+        cat: r.cat,
+        desc: r.desc || 'Import PDF',
+        montant: parseFloat(r.montant) || 0,
+        date: r.date,
+        note: r._comment || ''
+      });
+    }
   });
   await save();
   document.getElementById('done-msg').textContent = `${toImport.length} transaction${toImport.length>1?'s':''} importée${toImport.length>1?'s':''} !`;
@@ -1732,6 +1752,19 @@ async function doImport() {
 const CONSO_API = '/api/linky';
 
 let linkyToken  = localStorage.getItem('linky_token') || null;
+
+// Charger le token Linky depuis Firestore si pas en local
+async function linkyLoadTokenFromFirestore() {
+  try {
+    const doc = await db.collection('acala').doc('shared').get();
+    const data = doc.data() || {};
+    if (data.linkyToken && !linkyToken) {
+      linkyToken = data.linkyToken;
+      localStorage.setItem('linky_token', linkyToken);
+      console.log('Token Linky chargé depuis Firestore');
+    }
+  } catch(e) { console.log('Erreur chargement token Linky:', e); }
+}
 // Cache Linky : recharger si données > 1h ou si mois futurs présents
 (function() {
   const cached = JSON.parse(localStorage.getItem('linky_data') || 'null');
@@ -1759,6 +1792,8 @@ function linkySetToken() {
   if (!token) { showToast('Collez votre token Conso API'); return; }
   linkyToken = token;
   localStorage.setItem('linky_token', token);
+  // Sauvegarder dans Firestore pour partage entre appareils
+  try { db.collection('acala').doc('shared').set({ linkyToken: token }, { merge: true }); } catch(e) {}
   linkyData = null;
   localStorage.removeItem('linky_data');
   linkyFetchData();
@@ -1769,6 +1804,7 @@ function linkyDisconnect() {
   linkyData  = null;
   localStorage.removeItem('linky_token');
   localStorage.removeItem('linky_data');
+  try { db.collection('acala').doc('shared').update({ linkyToken: firebase.firestore.FieldValue.delete() }); } catch(e) {}
   renderLinkyPage();
 }
 
@@ -2064,6 +2100,9 @@ document.getElementById('f-ver-date').value = new Date().toISOString().slice(0,1
 
 // ── DÉMARRAGE : chargement depuis Firestore ──────────────
 async function init() {
+  // Charger le token Linky depuis Firestore si pas en local
+  await linkyLoadTokenFromFirestore();
+
   document.getElementById('recent-tx').innerHTML =
     '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-txt">Connexion…</div></div>';
   try {
