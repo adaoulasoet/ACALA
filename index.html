@@ -476,13 +476,26 @@
 
     <!-- PAGE TRANSACTIONS -->
     <div class="page" id="page-tx">
-      <div class="month-nav">
-        <button class="month-nav-btn" onclick="changeMonth(-1)">‹</button>
-        <div class="month-nav-label" id="tx-month-label">Juin 2026</div>
-        <button class="month-nav-btn" onclick="changeMonth(1)">›</button>
+      <div style="display:flex;gap:8px;padding:12px 16px 0;">
+        <button id="tx-tab-ops" onclick="switchTxTab('ops')" class="chip active" style="flex:1;">💳 Opérations</button>
+        <button id="tx-tab-vers" onclick="switchTxTab('vers')" class="chip" style="flex:1;">🏦 Versements</button>
       </div>
-      <div class="filter-scroll" id="filter-chips"></div>
-      <div id="tx-full-list"></div>
+
+      <!-- Onglet Opérations -->
+      <div id="tx-panel-ops">
+        <div class="month-nav">
+          <button class="month-nav-btn" onclick="changeMonth(-1)">‹</button>
+          <div class="month-nav-label" id="tx-month-label">Juin 2026</div>
+          <button class="month-nav-btn" onclick="changeMonth(1)">›</button>
+        </div>
+        <div class="filter-scroll" id="filter-chips"></div>
+        <div id="tx-full-list"></div>
+      </div>
+
+      <!-- Onglet Versements -->
+      <div id="tx-panel-vers" style="display:none;padding:12px 16px;">
+        <div id="versements-list"></div>
+      </div>
     </div>
 
     <!-- PAGE AJOUTER -->
@@ -1232,6 +1245,59 @@ async function saveNote(sid) {
 }
 
 // ── TRANSACTIONS PAGE ────────────────────────────────────
+function switchTxTab(tab) {
+  document.getElementById('tx-panel-ops').style.display  = tab === 'ops'  ? '' : 'none';
+  document.getElementById('tx-panel-vers').style.display = tab === 'vers' ? '' : 'none';
+  document.getElementById('tx-tab-ops').classList.toggle('active', tab === 'ops');
+  document.getElementById('tx-tab-vers').classList.toggle('active', tab === 'vers');
+  if (tab === 'vers') renderVersements();
+}
+
+function renderVersements() {
+  const el = document.getElementById('versements-list');
+  const vers = [...data.versements].sort((a,b) => b.date > a.date ? 1 : -1);
+  if (!vers.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏦</div><div class="empty-txt">Aucun versement enregistré</div></div>';
+    return;
+  }
+  el.innerHTML = vers.map(v => `
+    <div class="tx-row" style="align-items:center;">
+      <div class="tx-icon" style="background:#e8f0ea;">🏦</div>
+      <div class="tx-info" style="flex:1;">
+        <div class="tx-desc">${v.note || 'Versement'}</div>
+        <div class="tx-meta">${fmtDate(v.date)} ·
+          <select onchange="changeVerseur('${v.id}', this.value)" style="font-size:12px;border:1px solid var(--gris-bord);border-radius:6px;padding:2px 6px;background:var(--blanc);color:var(--texte);font-family:var(--font);">
+            <option value="alain"  ${v.qui==='alain' ?'selected':''}>👤 Alain</option>
+            <option value="anne"   ${v.qui==='anne'  ?'selected':''}>👤 Anne-Laure</option>
+          </select>
+        </div>
+      </div>
+      <div class="tx-amount">
+        <div class="tx-val rev">+${fmt(v.montant)}</div>
+      </div>
+      <button class="tx-delete" onclick="deleteVersement('${v.id}')" aria-label="Supprimer">×</button>
+    </div>`).join('');
+}
+
+async function changeVerseur(id, newQui) {
+  const v = data.versements.find(v => String(v.id) === String(id));
+  if (!v) return;
+  v.qui = newQui;
+  await save();
+  showToast('Versement mis à jour ✓');
+  renderVersements();
+  updateDashboard();
+}
+
+async function deleteVersement(id) {
+  data.versements = data.versements.filter(v => String(v.id) !== String(id));
+  await save();
+  renderVersements();
+  updateDashboard();
+  showToast('Versement supprimé');
+}
+
+function switchTxTab_init() {} // placeholder
 function setFilter(cat) { txFilterCat = cat; renderTransactions(); }
 function changeMonth(dir) {
   txViewDate = new Date(txViewDate.getFullYear(), txViewDate.getMonth() + dir, 1);
