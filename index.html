@@ -1286,14 +1286,14 @@ async function changeVerseur(id, newQui) {
   await save();
   showToast('Versement mis à jour ✓');
   renderVersements();
-  updateDashboard();
+  renderDashboard();
 }
 
 async function deleteVersement(id) {
   data.versements = data.versements.filter(v => String(v.id) !== String(id));
   await save();
   renderVersements();
-  updateDashboard();
+  renderDashboard();
   showToast('Versement supprimé');
 }
 
@@ -1303,7 +1303,7 @@ async function saveTxVerseur(sid, newQui) {
   t.qui = newQui;
   await save();
   showToast('Versement mis à jour ✓');
-  updateDashboard();
+  renderDashboard();
 }
 
 function switchTxTab_init() {} // placeholder
@@ -1421,7 +1421,7 @@ async function txSaveVerseur(i, val) {
   t.qui = val;
   await save();
   showToast('Versement mis à jour ✓');
-  updateDashboard();
+  renderDashboard();
 }
 
 async function txSaveCat(i, val) {
