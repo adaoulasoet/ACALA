@@ -1163,11 +1163,20 @@ function txRowHTML(t, showDelete) {
   const noteDisplay = t.note
     ? `<span style="color:var(--gris);">${t.note}</span> <span class="tx-note-edit" onclick="editNote('${sid}')">✏️</span>`
     : `<span class="tx-note-edit" onclick="editNote('${sid}')">+ commentaire</span>`;
+
+  // Sélecteur Alain/Anne-Laure pour les versements
+  const verseurSelect = t.cat === 'versement'
+    ? `<select onchange="saveTxVerseur('${sid}', this.value)" style="font-size:11px;border:1px solid var(--gris-bord);border-radius:5px;padding:2px 5px;background:var(--blanc);color:var(--texte);font-family:var(--font);margin-left:4px;">
+        <option value="alain" ${(t.qui||'alain')==='alain'?'selected':''}>👤 Alain</option>
+        <option value="anne"  ${(t.qui||'alain')==='anne' ?'selected':''}>👤 Anne-Laure</option>
+       </select>`
+    : '';
+
   return `<div class="tx-row" id="txrow-${sid}">
     <div class="tx-icon" id="txicon-${sid}" style="background:${c.bg || '#e8f0fb'}">${c.emoji}</div>
     <div class="tx-info">
       <div class="tx-desc">${t.desc}</div>
-      <div class="tx-meta">${fmtDate(t.date)} · <span class="cat-badge ${c.class}" id="txcat-${sid}" onclick="editCat('${sid}')" style="cursor:pointer;" title="Modifier la catégorie">${c.label} ✏️</span></div>
+      <div class="tx-meta">${fmtDate(t.date)} · <span class="cat-badge ${c.class}" id="txcat-${sid}" onclick="editCat('${sid}')" style="cursor:pointer;" title="Modifier la catégorie">${c.label} ✏️</span>${verseurSelect}</div>
       <div class="tx-note-inline" id="txnote-${sid}">${noteDisplay}</div>
     </div>
     <div class="tx-amount">
@@ -1177,7 +1186,6 @@ function txRowHTML(t, showDelete) {
     ${showDelete ? `<button class="tx-delete" onclick="deleteTx('${sid}')" aria-label="Supprimer">×</button>` : ''}
   </div>`;
 }
-
 function txSimpleRowHTML(t) {
   const c = CAT[t.cat] || {label:t.cat, emoji:'💶', class:'cb-versement', color:'#5d7c6d', bg:'#e8f0ea'};
   return `<div class="tx-row">
@@ -1295,6 +1303,15 @@ async function deleteVersement(id) {
   renderVersements();
   updateDashboard();
   showToast('Versement supprimé');
+}
+
+async function saveTxVerseur(sid, newQui) {
+  const t = findTx(sid);
+  if (!t) return;
+  t.qui = newQui;
+  await save();
+  showToast('Versement mis à jour ✓');
+  updateDashboard();
 }
 
 function switchTxTab_init() {} // placeholder
