@@ -476,26 +476,13 @@
 
     <!-- PAGE TRANSACTIONS -->
     <div class="page" id="page-tx">
-      <div style="display:flex;gap:8px;padding:12px 16px 0;">
-        <button id="tx-tab-ops" onclick="switchTxTab('ops')" class="chip active" style="flex:1;">💳 Opérations</button>
-        <button id="tx-tab-vers" onclick="switchTxTab('vers')" class="chip" style="flex:1;">🏦 Versements</button>
+      <div class="month-nav">
+        <button class="month-nav-btn" onclick="changeMonth(-1)">‹</button>
+        <div class="month-nav-label" id="tx-month-label">Juin 2026</div>
+        <button class="month-nav-btn" onclick="changeMonth(1)">›</button>
       </div>
-
-      <!-- Onglet Opérations -->
-      <div id="tx-panel-ops">
-        <div class="month-nav">
-          <button class="month-nav-btn" onclick="changeMonth(-1)">‹</button>
-          <div class="month-nav-label" id="tx-month-label">Juin 2026</div>
-          <button class="month-nav-btn" onclick="changeMonth(1)">›</button>
-        </div>
-        <div class="filter-scroll" id="filter-chips"></div>
-        <div id="tx-full-list"></div>
-      </div>
-
-      <!-- Onglet Versements -->
-      <div id="tx-panel-vers" style="display:none;padding:12px 16px;">
-        <div id="versements-list"></div>
-      </div>
+      <div class="filter-scroll" id="filter-chips"></div>
+      <div id="tx-full-list"></div>
     </div>
 
     <!-- PAGE AJOUTER -->
@@ -1044,16 +1031,21 @@ function renderDashboard() {
   const totalDep     = allTx.filter(t => t.type === 'depense').reduce((s,t) => s+t.montant, 0);
   const soldeCompte  = totalEntrees - totalDep;
 
-  // ── Qui a versé quoi ── (versements manuels + détection dans libellés)
+  // ── Qui a versé quoi ── (versements manuels + champ qui sur transactions importées)
   let alainVers = data.versements.filter(v=>v.qui==='alain').reduce((s,v)=>s+v.montant,0);
   let anneVers  = data.versements.filter(v=>v.qui==='anne').reduce((s,v)=>s+v.montant,0);
   allTx.filter(t => t.cat === 'versement').forEach(t => {
-    const d = (t.desc || '').toLowerCase();
-    const isAlain = d.includes('alain') || d.includes('daoulas');
-    const isAnne  = d.includes('anne') || d.includes('chicot') || d.includes('laure');
-    if (isAlain)       alainVers += t.montant;
-    else if (isAnne)   anneVers  += t.montant;
-    else { alainVers += t.montant / 2; anneVers += t.montant / 2; }
+    if (t.qui === 'alain')     alainVers += t.montant;
+    else if (t.qui === 'anne') anneVers  += t.montant;
+    else {
+      // Pas encore de qui défini : détecter par libellé
+      const d = (t.desc || '').toLowerCase();
+      const isAlain = d.includes('alain') || d.includes('daoulas');
+      const isAnne  = d.includes('anne') || d.includes('chicot') || d.includes('laure');
+      if (isAlain)     alainVers += t.montant;
+      else if (isAnne) anneVers  += t.montant;
+      else { alainVers += t.montant / 2; anneVers += t.montant / 2; }
+    }
   });
 
   // ── Helper setEl ──
